@@ -1,9 +1,13 @@
+#![allow(unused_imports)]
+#![allow(dead_code)]
+
 use std::{io, thread, time::Duration};
+use sys_pooler::SysInfo;
 use tui::{
     Frame, 
     Terminal,
     backend::{CrosstermBackend, Backend},
-    widgets::{Widget, Block, Borders, Paragraph, BorderType},
+    widgets::{Widget, Block, Borders, Paragraph, BorderType, List, ListItem},
     layout::{Layout, Constraint, Direction, Rect},
     style::{Color, Modifier, Style}
 };
@@ -14,8 +18,11 @@ use crossterm::{
 };
 
 
+
 mod sys_pooler;
 
+
+// App usage definition
 const APP_KEYS_DESC: &str = r#"
     App usage:
     Q:           Quit
@@ -25,7 +32,6 @@ const APP_KEYS_DESC: &str = r#"
     Shift+Tab:   Go to previous filed
     Esc:         Exit insert mode
     "#;
-// App state definition
 
 fn main() -> Result<(), io::Error> {
     // setup terminal
@@ -55,14 +61,32 @@ fn main() -> Result<(), io::Error> {
     Ok(())
 }
 
+// fn main() {
+//     let sys = SysInfo::new();
+
+//     for cpu in sys.system.cpus() {
+//         println!("{}", cpu.cpu_usage())
+//     }
+
+//     // Print disks
+//     for disk in sys.disks.list() {
+//         println!("{disk:?}");
+//     }
+
+//     // Print networks
+//     for (interface_name, network) in &sys.networks {
+//         println!("[{interface_name}]: {network:?}");
+//     }
+// }
+
 fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<(), std::io::Error> {
-    let mut state: sys_pooler::SysInfo = sys_pooler::setup();
+    let mut sys: sys_pooler::SysInfo = sys_pooler::setup();
     loop {
-        // Refresh state before next loop
-        state.refresh();
+        // Refresh sys before next loop
+        sys.refresh();
 
         // Draw data on the terminal and sleep for 10 ms
-        terminal.draw(|f| ui(f, &mut state))?;
+        terminal.draw(|f| ui(f, &mut sys))?;
         thread::sleep(Duration::from_millis(10));
         
         // Quit if user presses 'q'
@@ -76,7 +100,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<(), std::io::Error>
     Ok(())
 }
 
-fn ui<B: Backend>(f: &mut Frame<B>, state: &mut sys_pooler::SysInfo) {
+fn ui<B: Backend>(f: &mut Frame<B>, sys: &mut sys_pooler::SysInfo) {
     let main_chunk = Layout::default()
         .direction(Direction::Horizontal)
         .margin(1)
@@ -96,13 +120,13 @@ fn ui<B: Backend>(f: &mut Frame<B>, state: &mut sys_pooler::SysInfo) {
     f.render_widget(description_block, main_chunk[0]);
     draw_description(f, main_chunk[0]);
     
-    // Render components
-    let components_block = Block::default()
-        .title("System Information")
+    // Render disks
+    let disks_block = Block::default()
+        .title("Disks Information")
         .borders(Borders::ALL)
         .border_type(BorderType::Plain);
-    f.render_widget(components_block, main_chunk[1]);
-    draw_components(f, state, main_chunk[1]);
+    f.render_widget(disks_block, main_chunk[1]);
+    draw_disks(f, sys, main_chunk[1]);
 }
 
 fn draw_description<B: Backend>(f: &mut Frame<B>, area: Rect) {
@@ -125,30 +149,38 @@ fn draw_description<B: Backend>(f: &mut Frame<B>, area: Rect) {
     f.render_widget(app_desc, new_section_chunk[0]);
 }
 
-fn draw_components<B: Backend>(f: &mut Frame<B>, state: &mut sys_pooler::SysInfo, area: Rect) {
-    let new_section_chunk = Layout::default()
-        .margin(1)
-        .direction(Direction::Vertical)
-        .constraints(
-            [
-                Constraint::Percentage(25),
-                Constraint::Percentage(75)
-                // Constraint::Min(4),
-                // Constraint::Length(3),
-                // Constraint::Length(3),
-                // Constraint::Length(3),
-                // Constraint::Length(3),
-            ].as_ref()
-        )
-        .split(area);
+fn draw_disks<B: Backend>(f: &mut Frame<B>, sys: &mut sys_pooler::SysInfo, area: Rect) {
 
-    
-    
-    for component in &state.components {
-        println!("{}", component.label());
-        let desc = Paragraph::new(component.label());
-        f.render_widget(desc, new_section_chunk[0]);
-    }
+    // Get number of disks from sys
+    // const N_DISKS: usize = sys.disks.list().len();
+    // let mut percentage_for_each_section = 100/N_DISKS as u16;
+    // let constraints_arr = [Constraint::Percentage(percentage_for_each_section); N_DISKS];
+
+    // [
+    //     Constraint::Percentage(100),
+    //     Constraint::Percentage(75)
+    //     // Constraint::Min(4),
+    //     // Constraint::Length(3),
+    //     // Constraint::Length(3),
+    //     // Constraint::Length(3),
+    //     // Constraint::Length(3),
+    // ].as_ref()
+    // let new_section_chunk = Layout::default()
+    //     .margin(1)
+    //     .direction(Direction::Vertical)
+    //     .constraints(
+    //         constraints_arr.as_ref()
+    //     )
+    //     .split(area);
+
+    let disk_items: Vec<ListItem> = sys.get_disk_as_list_items();
+
+    let disk_list = List::new(disk_items)
+        .block(Block::default().title("Disk List").borders(Borders::ALL))
+        .style(Style::default().fg(Color::White))
+        .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
+        .highlight_symbol(">>");
+    f.render_widget(disk_list, area);
 }
 
 //     let title_input = Paragraph::new(state.new_title.to_owned())
