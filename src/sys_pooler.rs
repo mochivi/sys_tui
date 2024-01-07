@@ -1,16 +1,13 @@
 // pub mod sys_pooler;
 
-use std::ops::Deref;
-
 use sysinfo::{Disks, Networks, System, CpuRefreshKind, RefreshKind};
-use tui::widgets::{ListItem, List};
+// use tui::widgets::{ListItem, List, Dataset};
 
 pub struct SysInfo {
     pub disks: Disks,
     pub networks: Networks,
     pub system: System,
 }
-
 impl SysInfo {
     pub fn new() -> Self {
         Self {
@@ -42,12 +39,12 @@ impl SysInfo {
         self.system.refresh_all();
     }
 
-    pub fn get_cpus_usage(&self) -> Vec<f32> {
-        let mut cpu_usage_vec: Vec<f32> = Vec::new();
+    pub fn get_avg_cpu_usage(&self) -> f64 {
+        let mut cpu_usage_vec: Vec<f64> = Vec::new();
         for cpu in self.system.cpus().iter() {
-            cpu_usage_vec.push(cpu.cpu_usage());
+            cpu_usage_vec.push(cpu.cpu_usage().into());
         }
-        cpu_usage_vec
+       return cpu_usage_vec.iter().sum::<f64>() / cpu_usage_vec.len() as f64;
     }
 
     pub fn get_disk_names(&self) -> Vec<&str> {
