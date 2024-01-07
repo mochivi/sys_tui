@@ -5,10 +5,10 @@
 use tui::{
     Frame, 
     backend::Backend,
-    widgets::{Widget, Block, Borders, Paragraph, BorderType, List, ListItem, Gauge, Dataset},
+    widgets::{Widget, Block, Borders, Paragraph, BorderType, List, ListItem, Gauge, Dataset, Chart, Axis},
     layout::{Layout, Constraint, Direction, Rect, Alignment},
     style::{Color, Modifier, Style},
-    symbols::block
+    symbols::block, text::Span
 };
 // use crossterm::{
 //     event::{self, DisableMouseCapture, EnableMouseCapture, Event::Key, KeyCode},
@@ -60,7 +60,8 @@ pub fn create_ui<B: Backend>(f: &mut Frame<B>, state: &mut State) {
     draw_cpu_graph(
         f,
         state,
-        &blocks.get("graph_block").unwrap().inner(*areas.get("graph_area").unwrap())
+        &blocks.get("graph_block").unwrap().inner(*areas.get("graph_area").unwrap()),
+        &blocks.get("graph_block").unwrap()
     );
 }
 
@@ -221,8 +222,49 @@ fn draw_disks<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect) {
     f.render_widget(disk_list, *area);
 }
 
-fn draw_cpu_graph<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect) {
+fn draw_cpu_graph<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect, block: &Block) {
     let cpu_usage: f64 = state.system.get_avg_cpu_usage();
+
+    let mut dataset_vec = Vec::new();
+    dataset_vec.push(state.cpu_dataset.get_dataset());
+
+    let cpu_chart = Chart::new(dataset_vec)
+        .block(Block::default())
+        .x_axis(
+            Axis::default()
+                .title(Span::styled(
+                    "Time (ms)",
+                    Style::default()
+                        .bg(Color::White)
+                        .fg(Color::Black)
+                    )
+                )
+                .style(
+                    Style::default()
+                        .bg(Color::White)
+                        .fg(Color::Black)
+                )
+                .bounds([0.0, 10000.0])
+                .labels(["0.0", "5000.0", "10000.0"].iter().cloned().map(Span::from).collect())
+        )
+        .y_axis(
+            Axis::default()
+                .title(Span::styled(
+                    "Usage (%)",
+                    Style::default()
+                        .bg(Color::White)
+                        .fg(Color::Black)
+                    )
+                )
+                .style(
+                    Style::default()
+                        .bg(Color::White)
+                        .fg(Color::Black)
+                )
+                .bounds([0.0, 100.0])
+                .labels(["0.0", "25.0", "50.0", "75.0", "100.0"].iter().cloned().map(Span::from).collect())
+        );
+    f.render_widget(cpu_chart, *area);
     
 
     // let dataset = Dataset::default()

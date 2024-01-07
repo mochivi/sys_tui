@@ -13,7 +13,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen}
 };
 
-mod sys_pooler;
+mod sys_poller;
 mod state;
 mod ui;
 
@@ -48,26 +48,8 @@ fn main() -> Result<(), io::Error> {
     Ok(())
 }
 
-// fn main() {
-//     let sys = SysInfo::new();
-
-//     for cpu in sys.system.cpus() {
-//         println!("{}", cpu.cpu_usage())
-//     }
-
-//     // Print disks
-//     for disk in sys.disks.list() {
-//         println!("{disk:?}");
-//     }
-
-//     // Print networks
-//     for (interface_name, network) in &sys.networks {
-//         println!("[{interface_name}]: {network:?}");
-//     }
-// }
-
 fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<(), std::io::Error> {
-    let mut state: state::State = State::new(sys_pooler::setup());
+    let mut state: State = State::new(sys_poller::setup());
     loop {
         // Refresh state before next loop
         // This will add new data to datasets etc.
@@ -87,3 +69,21 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<(), std::io::Error>
     }
     Ok(())
 }
+
+// fn main() {
+//     let sys = SysInfo::new();
+
+//     for cpu in sys.system.cpus() {
+//         println!("{}", cpu.cpu_usage())
+//     }
+
+//     // Print disks
+//     for disk in sys.disks.list() {
+//         println!("{disk:?}");
+//     }
+
+//     // Print networks
+//     for (interface_name, network) in &sys.networks {
+//         println!("[{interface_name}]: {network:?}");
+//     }
+// }
