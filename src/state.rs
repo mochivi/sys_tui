@@ -63,17 +63,8 @@ impl CpuDataset {
         );
     }
 
-    pub fn get_dataset(&mut self) -> Dataset {
-        Dataset::default()
-            .name("CPU Usage")
-            .marker(tui::symbols::Marker::Dot)
-            .graph_type(GraphType::Line)
-            .style(
-                Style::default()
-                    .fg(Color::White)
-                    .bg(Color::Black)
-                )
-            .data(self.cpu_usage.as_slice())
-    }
+    pub fn get_cpu_usage_as_slice(&mut self) -> &[(f64, f64)] {
+        self.cpu_usage.as_slice()
+    }   
 }
 

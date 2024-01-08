@@ -2,10 +2,11 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
+use sysinfo::DiskKind;
 use tui::{
     Frame, 
     backend::Backend,
-    widgets::{Widget, Block, Borders, Paragraph, BorderType, List, ListItem, Gauge, Dataset, Chart, Axis},
+    widgets::{Widget, Block, Borders, Paragraph, BorderType, List, ListItem, Gauge, Dataset, Chart, Axis, GraphType, Row, Table, Wrap},
     layout::{Layout, Constraint, Direction, Rect, Alignment},
     style::{Color, Modifier, Style},
     symbols::block, text::Span
@@ -15,27 +16,19 @@ use tui::{
 //     execute,
 //     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen}, style::Stylize,
 // };
-use std::collections::HashMap;
-use crate::state::{State, Graph};
-
-// App usage definition
-const APP_KEYS_DESC: &str = r#"
-    App usage:
-    Q:           Quit
-    S:           Search
-    Insert Btn:  Insert new Password
-    Tab:         Go to next field
-    Shift+Tab:   Go to previous filed
-    Esc:         Exit insert mode
-    "#;
+use std::{collections::HashMap, ffi::OsString};
+use crate::{
+    state::{State, Graph},
+    sys_poller::DiskData
+};
 
 pub fn create_ui<B: Backend>(f: &mut Frame<B>, state: &mut State) {
     let main_chunk = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
         .constraints([
-            Constraint::Percentage(20),
-            Constraint::Percentage(80),
+            Constraint::Percentage(15),
+            Constraint::Percentage(85),
         ].as_ref()
     ).split(f.size());
 
@@ -47,21 +40,17 @@ pub fn create_ui<B: Backend>(f: &mut Frame<B>, state: &mut State) {
     let blocks: HashMap<String, Block<'static>> = draw_blocks(f, &areas);
 
     // Draw actual data
-    draw_usage(
-        f,
-        &blocks.get("app_usage_block").unwrap().inner(*areas.get("app_usage_area").unwrap()),
-    );
+    draw_description(f, &blocks.get("desc_block").unwrap().inner(*areas.get("desc_area").unwrap()));
+    draw_usage(f, &blocks.get("app_usage_block").unwrap().inner(*areas.get("app_usage_area").unwrap()));
     draw_disks(
         f, 
         state,
-        &blocks.get("disks_block").unwrap().inner(*areas.get("disk_info").unwrap()),
-        // &blocks.get("disks_block").unwrap()
+        &blocks.get("disks_block").unwrap().inner(*areas.get("disk_info").unwrap())
     );
     draw_cpu_graph(
         f,
         state,
-        &blocks.get("graph_block").unwrap().inner(*areas.get("graph_area").unwrap()),
-        &blocks.get("graph_block").unwrap()
+        &blocks.get("graph_block").unwrap().inner(*areas.get("graph_area").unwrap())
     );
 }
 
@@ -83,8 +72,8 @@ fn separate_areas(areas: &mut HashMap<String, Rect>, area: &Vec<Rect>) {
         .direction(Direction::Horizontal)
         .constraints(
             [
-                Constraint::Percentage(20),
-                Constraint::Percentage(80)
+                Constraint::Percentage(30),
+                Constraint::Percentage(70)
             ].as_ref()
         )
         .split(area[0]);
@@ -95,8 +84,8 @@ fn separate_areas(areas: &mut HashMap<String, Rect>, area: &Vec<Rect>) {
         .direction(Direction::Horizontal)
         .constraints(
             [
-                Constraint::Percentage(20),
-                Constraint::Percentage(60)
+                Constraint::Percentage(50),
+                Constraint::Percentage(50)
             ].as_ref()
         )
         .split(area[1]);
@@ -106,9 +95,9 @@ fn separate_areas(areas: &mut HashMap<String, Rect>, area: &Vec<Rect>) {
         .direction(Direction::Vertical)
         .constraints(
             [
-                Constraint::Percentage(34),
-                Constraint::Percentage(33),
-                Constraint::Percentage(34)
+                Constraint::Percentage(40),
+                Constraint::Percentage(40),
+                Constraint::Percentage(20)
             ].as_ref()
         )
         .split(lower_section[0]);
@@ -116,7 +105,6 @@ fn separate_areas(areas: &mut HashMap<String, Rect>, area: &Vec<Rect>) {
     areas.insert("mem_info".to_owned(), info_section[1]);
     areas.insert("disk_info".to_owned(), info_section[2]);
 }
-
 
 fn draw_blocks<'a, B: Backend>(f: &mut Frame<B>, areas: &HashMap<String, Rect>) -> HashMap<String, Block<'a>> {
     let mut blocks: HashMap<String, Block> = HashMap::new();
@@ -201,32 +189,161 @@ fn draw_blocks<'a, B: Backend>(f: &mut Frame<B>, areas: &HashMap<String, Rect>) 
     blocks
 }
 
+fn draw_description<B: Backend>(f: &mut Frame<B>, area: &Rect) {
+    // App description
+    const APP_DESCRIPTION: &str = r#"
+    App description:
+    This app allows the user to monitor CPU usage, memory and disks.
+    Monitoring can be done by switching the current graph seen on the right.
+    "#;
+    let app_desc = Paragraph::new(APP_DESCRIPTION)
+        .wrap(Wrap {trim: true})
+        .alignment(Alignment::Left)
+        .style(
+            Style::default()
+            .fg(Color::Green)
+            .bg(Color::Black)
+        );
+    f.render_widget(app_desc, *area);
+}
+
 
 fn draw_usage<B: Backend>(f: &mut Frame<B>, area: &Rect) {
-    let app_desc = Paragraph::new(APP_KEYS_DESC);
+    // App usage definition
+    const APP_USAGE: &str = r#"
+    App usage:
+    Q:           Quit
+    S:           Search
+    Insert Btn:  Insert new Password
+    Tab:         Go to next field
+    Shift+Tab:   Go to previous filed
+    Esc:         Exit insert mode
+    "#;
+    let app_desc = Paragraph::new(APP_USAGE);
     f.render_widget(app_desc, *area);
 }
 
 fn draw_disks<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect) {
-    let disk_items: Vec<&str> = state.system.get_disk_names();
-    
-    let disk_list_items: Vec<ListItem> = disk_items
-        .into_iter()
-        .map(|s| ListItem::new(s))
-        .collect();
+    let disks_data: Vec<DiskData> = state.system.get_disk_data();
+    let mut rows: Vec<Row> = Vec::new();
 
-    let disk_list = List::new(disk_list_items)
-        .style(Style::default().fg(Color::White))
-        .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
-        .highlight_symbol(">>");
-    f.render_widget(disk_list, *area);
+    // Push disk names into rows
+    let mut disk_names: Vec<String> = vec!["Name".to_string()];
+    disk_names.extend(
+        disks_data.iter().map(|d| {
+            d.name.to_str().unwrap().to_string()
+        }).collect::<Vec<String>>()
+    );
+    rows.push(
+        Row::new(disk_names)
+        .style(Style::default()
+            .fg(Color::White)
+            .bg(Color::Black)
+    ));
+
+    // Push disk kinds as strings
+    let mut disk_kinds: Vec<String> = vec!["Kind".to_string()];
+    disk_kinds.extend(
+        disks_data.iter().map(|d| {
+            d.kind.to_string()
+        }).collect::<Vec<String>>()    
+    );
+    rows.push(
+        Row::new(disk_kinds)
+        .style(Style::default()
+            .fg(Color::White)
+            .bg(Color::Black)
+    ));
+
+    // Push disk file system as strings
+    let mut disk_file_systems: Vec<String> = vec!["File System".to_string()];
+    disk_file_systems.extend(
+        disks_data.iter().map(|d| {
+            d.file_system.to_str().unwrap().to_string()
+        }).collect::<Vec<String>>()
+    );
+    rows.push(
+        Row::new(disk_file_systems)
+        .style(Style::default()
+            .fg(Color::White)
+            .bg(Color::Black)    
+    ));
+
+
+    // Push disk total spaces
+    let mut disk_total_spaces: Vec<String> = vec!["Name".to_string()];
+    disk_total_spaces.extend(
+        disks_data.iter().map(|d| {
+            d.total_space.to_string()
+        }).collect::<Vec<String>>()
+    );
+    rows.push(
+        Row::new(disk_total_spaces)
+        .style(Style::default()
+            .fg(Color::White)
+            .bg(Color::Black)    
+    ));
+
+    #todo!("Add string (b) to end of files or to the description col");
+    // Push disk available spaces
+    let mut disk_available_spaces: Vec<String> = vec!["Name".to_string()];
+    disk_available_spaces.extend(
+        disks_data.iter().map(|d| {
+            d.available_space.to_string()
+        }).collect::<Vec<String>>()
+    );
+    rows.push(
+        Row::new(disk_available_spaces)
+        .style(Style::default()
+            .fg(Color::White)
+            .bg(Color::Black)    
+    ));
+    
+    // Depending on the number of disks installed, adjust the column size + 1 for descriptions
+    let mut table_constraints_vec: Vec<Constraint> = vec![Constraint::Min(14)];
+    for _i in 0..disks_data.len() {
+        table_constraints_vec.push(Constraint::Percentage((100 / disks_data.len()) as u16))
+    }
+    let table_constraints_slice: &[Constraint] = table_constraints_vec.as_slice();
+
+    // Define header
+    let mut header_titles: Vec<String> = vec!["".to_string()];
+    for i in 0..disks_data.len() {
+        header_titles.push(format!("Disk {i}"));
+    }
+    let header: Row = Row::new(header_titles);
+
+    let disk_table = Table::new(rows)
+        .style(
+            Style::default()
+            .fg(Color::LightCyan)
+            .bg(Color::Black)
+        )
+        .block(Block::default())
+        .header(header)
+        .widths(table_constraints_slice)
+        .column_spacing(0);
+
+    // Render table
+    f.render_widget(disk_table, *area);
 }
 
-fn draw_cpu_graph<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect, block: &Block) {
-    let cpu_usage: f64 = state.system.get_avg_cpu_usage();
+fn draw_cpu_graph<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect) {
+    let cpu_dataset = Dataset::default()
+            .name("CPU Usage")
+            .marker(tui::symbols::Marker::Dot)
+            .graph_type(GraphType::Line)
+            .style(
+                Style::default()
+                    .fg(Color::White)
+                    .bg(Color::Black)
+                )
+            .data(
+                state.cpu_dataset.get_cpu_usage_as_slice()
+            );
 
     let mut dataset_vec = Vec::new();
-    dataset_vec.push(state.cpu_dataset.get_dataset());
+    dataset_vec.push(cpu_dataset);
 
     let cpu_chart = Chart::new(dataset_vec)
         .block(Block::default())
@@ -235,31 +352,31 @@ fn draw_cpu_graph<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect, 
                 .title(Span::styled(
                     "Time (ms)",
                     Style::default()
-                        .bg(Color::White)
-                        .fg(Color::Black)
+                        .bg(Color::Black)
+                        .fg(Color::White)
                     )
                 )
                 .style(
                     Style::default()
-                        .bg(Color::White)
-                        .fg(Color::Black)
+                        .bg(Color::Black)
+                        .fg(Color::White)
                 )
-                .bounds([0.0, 10000.0])
-                .labels(["0.0", "5000.0", "10000.0"].iter().cloned().map(Span::from).collect())
+                .bounds([0.0, 50000.0])
+                .labels(["0.0", "25000.0", "50000.0"].iter().cloned().map(Span::from).collect())
         )
         .y_axis(
             Axis::default()
                 .title(Span::styled(
                     "Usage (%)",
                     Style::default()
-                        .bg(Color::White)
-                        .fg(Color::Black)
+                        .bg(Color::Black)
+                        .fg(Color::White)
                     )
                 )
                 .style(
                     Style::default()
-                        .bg(Color::White)
-                        .fg(Color::Black)
+                        .bg(Color::Black)
+                        .fg(Color::White)
                 )
                 .bounds([0.0, 100.0])
                 .labels(["0.0", "25.0", "50.0", "75.0", "100.0"].iter().cloned().map(Span::from).collect())

@@ -1,6 +1,6 @@
-// #![allow(unused_imports)]
-// #![allow(unused_variables)]
-// #![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+#![allow(dead_code)]
 
 use std::{io, thread, time::Duration};
 use tui::{
@@ -71,7 +71,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<(), std::io::Error>
 }
 
 // fn main() {
-//     let sys = SysInfo::new();
+//     let sys = sys_poller::SysInfo::new();
 
 //     for cpu in sys.system.cpus() {
 //         println!("{}", cpu.cpu_usage())
