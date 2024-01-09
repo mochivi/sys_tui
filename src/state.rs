@@ -37,12 +37,14 @@ impl State {
         }
     }
 
-    pub fn refresh(&mut self) {
+    pub fn refresh(&mut self) -> f64 {
         self.system.refresh();
+        let elapsed_ms = self.start_time.elapsed().as_millis() as f64;
         self.cpu_dataset.update_cpu_usage(
-            self.start_time.elapsed().as_millis() as f64,
+            elapsed_ms,
             self.system.get_avg_cpu_usage().into()
         );
+        elapsed_ms
     }
 }
 

@@ -72,8 +72,8 @@ fn separate_areas(areas: &mut HashMap<String, Rect>, area: &Vec<Rect>) {
         .direction(Direction::Horizontal)
         .constraints(
             [
-                Constraint::Percentage(30),
-                Constraint::Percentage(70)
+                Constraint::Percentage(70),
+                Constraint::Percentage(30)
             ].as_ref()
         )
         .split(area[0]);
@@ -192,7 +192,6 @@ fn draw_blocks<'a, B: Backend>(f: &mut Frame<B>, areas: &HashMap<String, Rect>) 
 fn draw_description<B: Backend>(f: &mut Frame<B>, area: &Rect) {
     // App description
     const APP_DESCRIPTION: &str = r#"
-    App description:
     This app allows the user to monitor CPU usage, memory and disks.
     Monitoring can be done by switching the current graph seen on the right.
     "#;
@@ -255,6 +254,20 @@ fn draw_disks<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect) {
             .bg(Color::Black)
     ));
 
+    // Push disk available spaces
+    let mut disk_mount_point: Vec<String> = vec!["Mount Point".to_string()];
+    disk_mount_point.extend(
+        disks_data.iter().map(|d| {
+            d.mount_point.to_str().unwrap().to_string()
+        }).collect::<Vec<String>>()
+    );
+    rows.push(
+        Row::new(disk_mount_point)
+        .style(Style::default()
+            .fg(Color::White)
+            .bg(Color::Black)    
+    ));
+
     // Push disk file system as strings
     let mut disk_file_systems: Vec<String> = vec!["File System".to_string()];
     disk_file_systems.extend(
@@ -271,10 +284,11 @@ fn draw_disks<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect) {
 
 
     // Push disk total spaces
-    let mut disk_total_spaces: Vec<String> = vec!["Name".to_string()];
+    let mut disk_total_spaces: Vec<String> = vec!["Total Space (GB)".to_string()];
     disk_total_spaces.extend(
         disks_data.iter().map(|d| {
-            d.total_space.to_string()
+            let total_space_mb = d.total_space as f64 / 1_000_000_000.0;
+            format!("{total_space_mb:.3}")
         }).collect::<Vec<String>>()
     );
     rows.push(
@@ -284,12 +298,12 @@ fn draw_disks<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect) {
             .bg(Color::Black)    
     ));
 
-    #todo!("Add string (b) to end of files or to the description col");
     // Push disk available spaces
-    let mut disk_available_spaces: Vec<String> = vec!["Name".to_string()];
+    let mut disk_available_spaces: Vec<String> = vec!["Available Space (GB)".to_string()];
     disk_available_spaces.extend(
         disks_data.iter().map(|d| {
-            d.available_space.to_string()
+            let available_space_mb = d.available_space as f64 / 1_000_000_000.0;
+            format!("{available_space_mb:.3}")
         }).collect::<Vec<String>>()
     );
     rows.push(
@@ -300,16 +314,17 @@ fn draw_disks<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect) {
     ));
     
     // Depending on the number of disks installed, adjust the column size + 1 for descriptions
-    let mut table_constraints_vec: Vec<Constraint> = vec![Constraint::Min(14)];
+    let mut table_constraints_vec: Vec<Constraint> = vec![Constraint::Min(21)];
     for _i in 0..disks_data.len() {
-        table_constraints_vec.push(Constraint::Percentage((100 / disks_data.len()) as u16))
+        // table_constraints_vec.push(Constraint::Percentage((100 / disks_data.len()) as u16))
+        table_constraints_vec.push(Constraint::Min(15));
     }
     let table_constraints_slice: &[Constraint] = table_constraints_vec.as_slice();
 
     // Define header
     let mut header_titles: Vec<String> = vec!["".to_string()];
     for i in 0..disks_data.len() {
-        header_titles.push(format!("Disk {i}"));
+        header_titles.push(format!("Disk {}", i+1));
     }
     let header: Row = Row::new(header_titles);
 

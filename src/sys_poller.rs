@@ -19,11 +19,19 @@ pub struct DiskData {
     pub file_system: Box<OsString>,
     pub total_space: u64,
     pub available_space: u64,
+    pub mount_point: Box<OsString>
 }
 
 impl DiskData {
-    pub fn new(name: Box<OsString>, kind: DiskKind, file_system: Box<OsString>, total_space: u64, available_space: u64) -> Self {
-        Self {name, kind, file_system, total_space, available_space}
+    pub fn new(
+        name: Box<OsString>,
+        kind: DiskKind,
+        file_system: Box<OsString>, 
+        total_space: u64,
+        available_space: u64,
+        mount_point: Box<OsString>
+    ) -> Self {
+        Self {name, kind, file_system, total_space, available_space, mount_point}
     }
 }
 
@@ -73,18 +81,11 @@ impl SysInfo {
                 d.kind(),
                 Box::new(d.file_system().to_owned()),
                 d.total_space(),
-                d.available_space()
+                d.available_space(),
+                Box::new(d.mount_point().as_os_str().to_owned())
             )
         }).collect::<Vec<DiskData>>()
     }
-
-    // pub fn get_disk_names(&self) -> Vec<&str> {
-    //     self.disks
-    //         .list()
-    //         .iter()
-    //         .map(|d| d.name().to_str().unwrap())
-    //         .collect::<Vec::<&str>>()
-    // }
 }
 
 pub fn setup() -> SysInfo {
