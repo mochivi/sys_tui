@@ -2,6 +2,8 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
+use std::collections::VecDeque;
+
 use tui::{
     widgets::{Dataset, GraphType},
     style::{Style, Color}
@@ -24,7 +26,7 @@ pub struct State {
 }
 
 pub struct CpuDataset {
-    pub cpu_usage: Vec<(f64, f64)>,
+    pub cpu_usage: VecDeque<(f64, f64)>,
 }
 
 impl State {
@@ -51,22 +53,26 @@ impl State {
 impl CpuDataset {
     pub fn new() -> Self {
         Self {
-            cpu_usage: Vec::new()
+            cpu_usage: VecDeque::with_capacity(100000)
         }
     }
 
     // Update vec and insert values
-    pub fn update_cpu_usage(&mut self, time_ms: f64, value: f64) {
-        self.cpu_usage.push(
+    pub fn update_cpu_usage(&mut self, elapsed_ms: f64, value: f64) {
+        if elapsed_ms >= 25000.0 {
+            self.cpu_usage.pop_front();
+        }
+        self.cpu_usage.push_back(
             (
-                time_ms,
+                elapsed_ms,
                 value
             )
-        );
+        );        
     }
 
-    pub fn get_cpu_usage_as_slice(&mut self) -> &[(f64, f64)] {
-        self.cpu_usage.as_slice()
+    pub fn get_cpu_usage_as_slice(&mut self) -> (&[(f64, f64)], &[(f64, f64)]) {
+        self.cpu_usage.make_contiguous();
+        self.cpu_usage.as_slices()
     }   
 }
 

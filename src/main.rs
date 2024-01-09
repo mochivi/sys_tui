@@ -53,10 +53,10 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<(), std::io::Error>
     loop {
         // Refresh state before next loop
         // This will add new data to datasets etc.
-        state.refresh();
+        let elapsed_ms: f64 = state.refresh();
 
         // Draw data on the terminal and sleep for 10 ms
-        terminal.draw(|f| ui::create_ui(f, &mut state))?;
+        terminal.draw(|f| ui::create_ui(f, &mut state, elapsed_ms))?;
         thread::sleep(Duration::from_millis(10));
         
         // Quit if user presses 'q'

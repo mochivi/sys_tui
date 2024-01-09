@@ -22,7 +22,7 @@ use crate::{
     sys_poller::DiskData
 };
 
-pub fn create_ui<B: Backend>(f: &mut Frame<B>, state: &mut State) {
+pub fn create_ui<B: Backend>(f: &mut Frame<B>, state: &mut State, elapsed_ms: f64) {
     let main_chunk = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
@@ -50,7 +50,8 @@ pub fn create_ui<B: Backend>(f: &mut Frame<B>, state: &mut State) {
     draw_cpu_graph(
         f,
         state,
-        &blocks.get("graph_block").unwrap().inner(*areas.get("graph_area").unwrap())
+        &blocks.get("graph_block").unwrap().inner(*areas.get("graph_area").unwrap()),
+        elapsed_ms
     );
 }
 
@@ -343,7 +344,8 @@ fn draw_disks<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect) {
     f.render_widget(disk_table, *area);
 }
 
-fn draw_cpu_graph<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect) {
+fn draw_cpu_graph<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect, elapsed_ms: f64) {
+    let (data, _) = state.cpu_dataset.get_cpu_usage_as_slice();
     let cpu_dataset = Dataset::default()
             .name("CPU Usage")
             .marker(tui::symbols::Marker::Dot)
@@ -354,11 +356,38 @@ fn draw_cpu_graph<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect) 
                     .bg(Color::Black)
                 )
             .data(
-                state.cpu_dataset.get_cpu_usage_as_slice()
+                data
             );
 
     let mut dataset_vec = Vec::new();
     dataset_vec.push(cpu_dataset);
+
+
+    let right_bound = elapsed_ms;
+
+    // This is hardcoded and should not be.
+    // Same value is used in state.rs CpuDataset update_cpu_usage()
+    let left_bound: f64 = if elapsed_ms <= 25000.0 { 0.0 } else { elapsed_ms - 25000.0 };
+
+    // Create graph labels as &[&str] based on the current right_bound f64 value.
+    // This is messy and surely there's a better way I do not know of
+    let mut graph_labels: Vec<f64> = Vec::new();
+
+    if elapsed_ms <= 25000.0 {
+        graph_labels.push(0.0);
+    } else {
+        graph_labels.push(elapsed_ms - 25000.0)
+    };
+    graph_labels.push(right_bound/2.0);
+    graph_labels.push(right_bound);
+    
+    
+    let graph_labels = graph_labels.into_iter().map(|i| {
+        i.to_string()
+    }).collect::<Vec<String>>();
+    let graph_labels: Vec<&str> = graph_labels.iter().map(|i| {
+        i.as_ref()
+    }).collect::<Vec<&str>>();
 
     let cpu_chart = Chart::new(dataset_vec)
         .block(Block::default())
@@ -376,8 +405,8 @@ fn draw_cpu_graph<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect) 
                         .bg(Color::Black)
                         .fg(Color::White)
                 )
-                .bounds([0.0, 50000.0])
-                .labels(["0.0", "25000.0", "50000.0"].iter().cloned().map(Span::from).collect())
+                .bounds([left_bound, right_bound])
+                .labels(graph_labels.as_slice().iter().cloned().map(Span::from).collect())
         )
         .y_axis(
             Axis::default()
