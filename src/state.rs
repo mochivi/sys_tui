@@ -4,7 +4,7 @@
 
 use std::collections::VecDeque;
 
-use tui::{
+use ratatui::{
     widgets::{Dataset, GraphType},
     style::{Style, Color}
 };

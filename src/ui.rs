@@ -3,27 +3,28 @@
 #![allow(dead_code)]
 
 use sysinfo::DiskKind;
-use tui::{
+use ratatui::{
     Frame, 
     backend::Backend,
     widgets::{Widget, Block, Borders, Paragraph, BorderType, List, ListItem, Gauge, Dataset, Chart, Axis, GraphType, Row, Table, Wrap},
     layout::{Layout, Constraint, Direction, Rect, Alignment},
     style::{Color, Modifier, Style},
-    symbols::block, text::Span
+    symbols::{block, Marker},
+    text::Span
 };
 // use crossterm::{
 //     event::{self, DisableMouseCapture, EnableMouseCapture, Event::Key, KeyCode},
 //     execute,
 //     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen}, style::Stylize,
 // };
-use std::{collections::HashMap, ffi::OsString};
+use std::{collections::HashMap, ffi::OsString, ops::Deref, rc::Rc};
 use crate::{
     state::{State, Graph},
     sys_poller::DiskData
 };
 
-pub fn create_ui<B: Backend>(f: &mut Frame<B>, state: &mut State, elapsed_ms: f64) {
-    let main_chunk = Layout::default()
+pub fn create_ui(f: &mut Frame, state: &mut State, elapsed_ms: f64) {
+    let main_chunk: Rc<[Rect]> = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
         .constraints([
@@ -34,7 +35,7 @@ pub fn create_ui<B: Backend>(f: &mut Frame<B>, state: &mut State, elapsed_ms: f6
 
     // Get all areas and their respective names as a HashMap
     let mut areas: HashMap<String, Rect> = HashMap::new();
-    separate_areas(&mut areas, &main_chunk);
+    separate_areas(&mut areas, main_chunk.deref());
 
     // Draw all blocks and borders etc.
     let blocks: HashMap<String, Block<'static>> = draw_blocks(f, &areas);
@@ -56,7 +57,7 @@ pub fn create_ui<B: Backend>(f: &mut Frame<B>, state: &mut State, elapsed_ms: f6
 }
 
 // Define all areas that will containg widgets
-fn separate_areas(areas: &mut HashMap<String, Rect>, area: &Vec<Rect>) {
+fn separate_areas(areas: &mut HashMap<String, Rect>, area: &[Rect]) {
 
     // The idea is that the app looks like:
     // ------------------------------
@@ -69,7 +70,7 @@ fn separate_areas(areas: &mut HashMap<String, Rect>, area: &Vec<Rect>) {
     // | info     |   by the user)  |
     // ------------------------------
 
-    let uppermost_section: Vec<Rect> = Layout::default()
+    let uppermost_section: Rc<[Rect]> = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(
             [
@@ -81,7 +82,7 @@ fn separate_areas(areas: &mut HashMap<String, Rect>, area: &Vec<Rect>) {
     areas.insert("desc_area".to_owned(), uppermost_section[0]);
     areas.insert("app_usage_area".to_owned(), uppermost_section[1]);
     
-    let lower_section: Vec<Rect> = Layout::default()
+    let lower_section: Rc<[Rect]> = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(
             [
@@ -92,7 +93,7 @@ fn separate_areas(areas: &mut HashMap<String, Rect>, area: &Vec<Rect>) {
         .split(area[1]);
     areas.insert("graph_area".to_owned(), lower_section[1]);
 
-    let info_section: Vec<Rect> = Layout::default()
+    let info_section: Rc<[Rect]> = Layout::default()
         .direction(Direction::Vertical)
         .constraints(
             [
@@ -107,7 +108,7 @@ fn separate_areas(areas: &mut HashMap<String, Rect>, area: &Vec<Rect>) {
     areas.insert("disk_info".to_owned(), info_section[2]);
 }
 
-fn draw_blocks<'a, B: Backend>(f: &mut Frame<B>, areas: &HashMap<String, Rect>) -> HashMap<String, Block<'a>> {
+fn draw_blocks<'a>(f: &mut Frame, areas: &HashMap<String, Rect>) -> HashMap<String, Block<'a>> {
     let mut blocks: HashMap<String, Block> = HashMap::new();
     let description_block = Block::default()
         .title("App Description")
@@ -190,7 +191,7 @@ fn draw_blocks<'a, B: Backend>(f: &mut Frame<B>, areas: &HashMap<String, Rect>) 
     blocks
 }
 
-fn draw_description<B: Backend>(f: &mut Frame<B>, area: &Rect) {
+fn draw_description(f: &mut Frame, area: &Rect) {
     // App description
     const APP_DESCRIPTION: &str = r#"
     This app allows the user to monitor CPU usage, memory and disks.
@@ -208,22 +209,17 @@ fn draw_description<B: Backend>(f: &mut Frame<B>, area: &Rect) {
 }
 
 
-fn draw_usage<B: Backend>(f: &mut Frame<B>, area: &Rect) {
+fn draw_usage(f: &mut Frame, area: &Rect) {
     // App usage definition
     const APP_USAGE: &str = r#"
     App usage:
     Q:           Quit
-    S:           Search
-    Insert Btn:  Insert new Password
-    Tab:         Go to next field
-    Shift+Tab:   Go to previous filed
-    Esc:         Exit insert mode
     "#;
     let app_desc = Paragraph::new(APP_USAGE);
     f.render_widget(app_desc, *area);
 }
 
-fn draw_disks<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect) {
+fn draw_disks(f: &mut Frame, state: &mut State, area: &Rect) {
     let disks_data: Vec<DiskData> = state.system.get_disk_data();
     let mut rows: Vec<Row> = Vec::new();
 
@@ -329,7 +325,7 @@ fn draw_disks<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect) {
     }
     let header: Row = Row::new(header_titles);
 
-    let disk_table = Table::new(rows)
+    let disk_table = Table::new(rows, table_constraints_slice)
         .style(
             Style::default()
             .fg(Color::LightCyan)
@@ -337,18 +333,17 @@ fn draw_disks<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect) {
         )
         .block(Block::default())
         .header(header)
-        .widths(table_constraints_slice)
         .column_spacing(0);
 
     // Render table
     f.render_widget(disk_table, *area);
 }
 
-fn draw_cpu_graph<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect, elapsed_ms: f64) {
+fn draw_cpu_graph(f: &mut Frame, state: &mut State, area: &Rect, elapsed_ms: f64) {
     let (data, _) = state.cpu_dataset.get_cpu_usage_as_slice();
     let cpu_dataset = Dataset::default()
             .name("CPU Usage")
-            .marker(tui::symbols::Marker::Dot)
+            .marker(Marker::Dot)
             .graph_type(GraphType::Line)
             .style(
                 Style::default()
@@ -426,76 +421,5 @@ fn draw_cpu_graph<B: Backend>(f: &mut Frame<B>, state: &mut State, area: &Rect, 
                 .labels(["0.0", "25.0", "50.0", "75.0", "100.0"].iter().cloned().map(Span::from).collect())
         );
     f.render_widget(cpu_chart, *area);
-    
-
-    // let dataset = Dataset::default()
-    //     .name("CPU Usage")
-    //     .data(data)
-
-
-
-
-    // Create layout for CPU graphs, one gauge for each CPU
-    // Create constraints
-    // let mut cpu_layout_constraints_vec = Vec::new();
-    // for _i in 0..cpus_usage.len() {
-    //     cpu_layout_constraints_vec.push(Constraint::Percentage((cpus_usage.len() / 100) as u16))
-    // }
-    // let cpu_layout_constraints_slice = cpu_layout_constraints_vec.as_slice();   
-    
-    // // Create Layout
-    // let cpu_graph_layout: Vec<Rect> = Layout::default()
-    //     .margin(1)
-    //     .direction(Direction::Vertical)
-    //     .constraints(
-    //         cpu_layout_constraints_slice.as_ref()
-    //     )
-    //     .split(*area);
-
-    // // Render Gauges
-    // let mut cpu_gauge: Gauge;
-    // for (index, cpu_usage) in cpus_usage.into_iter().enumerate() {
-    //     cpu_gauge = Gauge::default()
-    //         .gauge_style(Style::default()
-    //             .fg(Color::LightBlue)
-    //             .bg(Color::Black)
-    //         )
-    //         .percent(cpu_usage as u16);
-    //     f.render_widget(cpu_gauge, *cpu_graph_layout.get(index).unwrap());
-    // }
 
 }
-
-//     let title_input = Paragraph::new(state.new_title.to_owned())
-//         .block(Block::default().title("Title").borders(Borders::ALL).border_type(BorderType::Rounded))
-//         .style(match state.mode {
-//             InputMode::Title => Style::default().fg(Color::Yellow),
-//             _ => Style::default()
-//         });
-//     f.render_widget(title_input, new_section_chunk[1]);
-
-//     let username_input = Paragraph::new(state.new_username.to_owned())
-//         .block(Block::default().title("Username").borders(Borders::ALL).border_type(BorderType::Rounded))
-//         .style(match state.mode {
-//             InputMode::Username => Style::default().fg(Color::Yellow),
-//             _ => Style::default()
-//         });
-//     f.render_widget(username_input, new_section_chunk[2]);
-
-//     let password_input = Paragraph::new(state.new_password.to_owned())
-//         .block(Block::default().title("Password").borders(Borders::ALL).border_type(BorderType::Rounded))
-//         .style(match state.mode {
-//             InputMode::Password => Style::default().fg(Color::Yellow),
-//             _ => Style::default()
-//         });
-//     f.render_widget(password_input, new_section_chunk[3]);
-
-//     let submit_btn = Paragraph::new("Submit")
-//         .alignment(Alignment::Center)
-//         .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded))
-//         .style(match state.mode {
-//             InputMode::Submit => Style::default().fg(Color::Yellow),
-//             _ => Style::default()
-//         });
-//     f.render_widget(submit_btn, new_section_chunk[4]);
-// }

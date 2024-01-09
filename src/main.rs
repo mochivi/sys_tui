@@ -3,12 +3,12 @@
 #![allow(dead_code)]
 
 use std::{io, thread, time::Duration};
-use tui::{
+use ratatui::{
     Terminal,
     backend::{CrosstermBackend, Backend},
 };
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event::Key, KeyCode},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event::Key, KeyCode, KeyEvent},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen}
 };
@@ -48,7 +48,7 @@ fn main() -> Result<(), io::Error> {
     Ok(())
 }
 
-fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<(), std::io::Error> {
+fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> io::Result<()> {
     let mut state: State = State::new(sys_poller::setup());
     loop {
         // Refresh state before next loop
@@ -57,14 +57,19 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<(), std::io::Error>
 
         // Draw data on the terminal and sleep for 10 ms
         terminal.draw(|f| ui::create_ui(f, &mut state, elapsed_ms))?;
-        thread::sleep(Duration::from_millis(10));
+        // thread::sleep(Duration::from_millis(10));
         
         // Quit if user presses 'q'
-        if let Key(key) = event::read()? {
-            match key.code {
-                KeyCode::Char('q') => break,
-                _ => {}
+        match event::poll(Duration::from_millis(10))? {
+            true => {
+                if let Key(key) = event::read()? {
+                    match key.code {
+                        KeyCode::Char('q') => break,
+                        _ => {}
+                    }
+                }
             }
+            false => continue
         }
     }
     Ok(())

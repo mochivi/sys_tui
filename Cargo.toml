@@ -7,5 +7,5 @@ edition = "2021"
 
 [dependencies]
 crossterm = "0.27.0"
+ratatui = { version = "0.25.0", features = ["all-widgets"] }
 sysinfo = "0.30.3"
-tui = "0.19.0"
