@@ -22,11 +22,8 @@ pub struct State {
     pub system: sys_poller::SysInfo,
     pub graph: Graph,
     pub cpu_dataset: CpuDataset,
-    start_time: Instant
-}
-
-pub struct CpuDataset {
-    pub cpu_usage: VecDeque<(f64, f64)>,
+    start_time: Instant,
+    pub graph_size_percentage: u16
 }
 
 impl State {
@@ -35,25 +32,72 @@ impl State {
             system: sys,
             graph: Graph::CPU,
             cpu_dataset: CpuDataset::new(),
-            start_time: Instant::now()
+            start_time: Instant::now(),
+            graph_size_percentage: 60
         }
     }
 
     pub fn refresh(&mut self) -> f64 {
         self.system.refresh();
+        let elapsed_ms = self.refresh_cpu_dataset();
+        elapsed_ms
+    }
+
+    pub fn refresh_cpu_dataset(&mut self) -> f64 {
+        
+        // Refresh cpu usage
         let elapsed_ms = self.start_time.elapsed().as_millis() as f64;
         self.cpu_dataset.update_cpu_usage(
             elapsed_ms,
             self.system.get_avg_cpu_usage().into()
-        );
-        elapsed_ms
+        );        
+        
+        return elapsed_ms;
     }
+
+    pub fn set_graph_cpu(&mut self) {
+        self.graph = Graph::CPU
+    }
+
+    pub fn set_graph_memory(&mut self) {
+        self.graph = Graph::MEMORY
+    }
+
+    pub fn set_graph_disk(&mut self) {
+        self.graph = Graph::DISK
+    }
+
+    pub fn expand_graph_size(&mut self) {
+        self.graph_size_percentage += 2;
+        if self.graph_size_percentage >= 100 {
+            self.graph_size_percentage = 100;
+        }
+    }
+
+    pub fn reduce_graph_size(&mut self) {
+        // Avoid assigning a u16 value as negative
+        if self.graph_size_percentage <= 0 {
+            self.graph_size_percentage = 100;
+        } else {
+            self.graph_size_percentage -= 2;
+        }
+    }
+
+
+
+
+
+
+}
+
+pub struct CpuDataset {
+    pub cpu_usage: VecDeque<(f64, f64)>
 }
 
 impl CpuDataset {
     pub fn new() -> Self {
         Self {
-            cpu_usage: VecDeque::with_capacity(100000)
+            cpu_usage: VecDeque::with_capacity(100000),
         }
     }
 

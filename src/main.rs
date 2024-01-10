@@ -12,6 +12,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen}
 };
+use state::Graph;
 
 mod sys_poller;
 mod state;
@@ -50,21 +51,27 @@ fn main() -> Result<(), io::Error> {
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> io::Result<()> {
     let mut state: State = State::new(sys_poller::setup());
+    let mut elapsed_ms: f64 = state.refresh();
     loop {
-        // Refresh state before next loop
-        // This will add new data to datasets etc.
-        let elapsed_ms: f64 = state.refresh();
-
         // Draw data on the terminal and sleep for 10 ms
         terminal.draw(|f| ui::create_ui(f, &mut state, elapsed_ms))?;
-        // thread::sleep(Duration::from_millis(10));
+        // thread::sleep(Duration::from_millis(490));
+
+        // Refresh state before next loop
+        // This will add new data to datasets etc.
+        elapsed_ms = state.refresh();
         
         // Quit if user presses 'q'
-        match event::poll(Duration::from_millis(10))? {
+        match event::poll(Duration::from_millis(50))? {
             true => {
                 if let Key(key) = event::read()? {
                     match key.code {
                         KeyCode::Char('q') => break,
+                        KeyCode::Char('c') => state.set_graph_cpu(),
+                        KeyCode::Char('m') => state.set_graph_memory(),
+                        KeyCode::Char('d') => state.set_graph_disk(),
+                        KeyCode::Char('a') => state.expand_graph_size(),
+                        KeyCode::Char('s') => state.reduce_graph_size(),
                         _ => {}
                     }
                 }
@@ -74,21 +81,3 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> io::Result<()> {
     }
     Ok(())
 }
-
-// fn main() {
-//     let sys = sys_poller::SysInfo::new();
-
-//     for cpu in sys.system.cpus() {
-//         println!("{}", cpu.cpu_usage())
-//     }
-
-//     // Print disks
-//     for disk in sys.disks.list() {
-//         println!("{disk:?}");
-//     }
-
-//     // Print networks
-//     for (interface_name, network) in &sys.networks {
-//         println!("[{interface_name}]: {network:?}");
-//     }
-// }

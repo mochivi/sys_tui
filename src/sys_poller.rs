@@ -67,11 +67,27 @@ impl SysInfo {
     }
 
     pub fn get_avg_cpu_usage(&self) -> f64 {
-        let mut cpu_usage_vec: Vec<f64> = Vec::new();
+        return self.system.global_cpu_info().cpu_usage() as f64;
+    }
+
+    pub fn get_avg_cpu_frequency(&self) -> u64 {
+        let mut cpu_freq_vec: Vec<u64> = Vec::new();
         for cpu in self.system.cpus().iter() {
-            cpu_usage_vec.push(cpu.cpu_usage().into());
-        }
-       return cpu_usage_vec.iter().sum::<f64>() / cpu_usage_vec.len() as f64;
+            cpu_freq_vec.push(cpu.frequency())
+        } 
+        return cpu_freq_vec.iter().sum::<u64>() / cpu_freq_vec.len() as u64;
+    }
+
+    pub fn get_core_count(&self) -> usize {
+        self.system.physical_core_count().unwrap()
+    }
+
+    pub fn get_cpu_brand(&self) -> String {
+        self.system.cpus()[0].brand().to_string()
+    }
+
+    pub fn get_processes_count(&self) -> usize{
+        self.system.processes().len()
     }
 
     pub fn get_disk_data(&self) -> Vec<DiskData> {
