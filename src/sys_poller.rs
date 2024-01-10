@@ -102,6 +102,14 @@ impl SysInfo {
             )
         }).collect::<Vec<DiskData>>()
     }
+
+    pub fn get_memory_data(&self) -> (u64, u64, u64) {
+        (
+            self.system.free_memory() / 1_000_000,
+            self.system.used_memory() / 1_000_000,
+            self.system.total_memory() / 1_000_000,
+        )
+    }
 }
 
 pub fn setup() -> SysInfo {

@@ -13,27 +13,32 @@ use ratatui::{
     symbols::{block, Marker, border::Set},
     text::Span
 };
-use std::{collections::HashMap, ffi::OsString, ops::Deref, rc::Rc};
+use std::{collections::HashMap, ffi::OsString, ops::Deref, rc::Rc, mem};
 use crate::{
     state::{State, Graph},
     sys_poller::DiskData
 };
 
-const MIN_TOTAL_HEIGHT: u16 = 32;
-const MIN_TOTAL_WIDTH: u16 = 40;
+const MIN_UPPER_SECTION_HEIGHT: u16 = 10;
+const MIN_CPU_HEIGHT: u16 = 12;
+const MIN_MEM_HEIGHT: u16 = 12;
+const MIN_DISK_HEIGHT: u16 = 8;
+
+const MIN_TOTAL_HEIGHT: u16 = MIN_UPPER_SECTION_HEIGHT + MIN_CPU_HEIGHT + MIN_MEM_HEIGHT + MIN_DISK_HEIGHT;
+
 
 pub fn create_ui(f: &mut Frame, state: &mut State, elapsed_ms: f64) {
     let main_chunk: Rc<[Rect]> = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
         .constraints([
-            Constraint::Percentage(15),
+            Constraint::Min(MIN_UPPER_SECTION_HEIGHT),
             Constraint::Percentage(85),
         ].as_ref()
     ).split(f.size());
 
     // Get all areas and their respective names as a HashMap
-    let areas: HashMap<String, Rect> = separate_areas(main_chunk.deref(), &state);
+    let areas: HashMap<String, Rect> = separate_areas(f, main_chunk.deref(), &state);
 
     // Draw all blocks and borders etc.
     let blocks: HashMap<String, Block<'static>> = draw_blocks(f, &areas);
@@ -42,11 +47,8 @@ pub fn create_ui(f: &mut Frame, state: &mut State, elapsed_ms: f64) {
     draw_description(f, &blocks.get("desc_block").unwrap().inner(*areas.get("desc_area").unwrap()));
     draw_usage(f, &blocks.get("app_usage_block").unwrap().inner(*areas.get("app_usage_area").unwrap()));
     draw_cpu(f, state, &blocks.get("cpu_block").unwrap().inner(*areas.get("cpu_info").unwrap()));
-    draw_disks(
-        f, 
-        state,
-        &blocks.get("disks_block").unwrap().inner(*areas.get("disk_info").unwrap())
-    );
+    draw_memory(f, state, &blocks.get("mem_block").unwrap().inner(*areas.get("mem_info").unwrap()));
+    draw_disks(f, state, &blocks.get("disks_block").unwrap().inner(*areas.get("disk_info").unwrap()));
     match state.graph {
         Graph::CPU => {
             draw_cpu_graph(
@@ -64,7 +66,7 @@ pub fn create_ui(f: &mut Frame, state: &mut State, elapsed_ms: f64) {
 }
 
 // Define all areas that will containg widgets
-fn separate_areas(area_arr: &[Rect], state: &State) -> HashMap<String, Rect> {
+fn separate_areas(f: &Frame, area_arr: &[Rect], state: &State) -> HashMap<String, Rect> {
 
     // The idea is that the app looks like:
     // ------------------------------
@@ -104,11 +106,20 @@ fn separate_areas(area_arr: &[Rect], state: &State) -> HashMap<String, Rect> {
     let info_section: Rc<[Rect]> = Layout::default()
         .direction(Direction::Vertical)
         .constraints(
-            [
-                Constraint::Min(12),
-                Constraint::Percentage(25),
-                Constraint::Min(8)
-            ].as_ref()
+            if f.size().height <= MIN_TOTAL_HEIGHT {
+                [
+                    Constraint::Min(MIN_CPU_HEIGHT),
+                    Constraint::Min(MIN_MEM_HEIGHT),
+                    Constraint::Min(MIN_DISK_HEIGHT)
+                ].as_ref()
+            } else {
+                [
+                    Constraint::Percentage(33),
+                    Constraint::Percentage(33),
+                    Constraint::Percentage(33)
+                ].as_ref()
+            }
+            
         )
         .split(lower_section[0]);
     areas.insert("cpu_info".to_owned(), info_section[0]);
@@ -233,7 +244,7 @@ fn draw_usage(f: &mut Frame, area: &Rect) {
     f.render_widget(app_desc, *area);
 }
 
-fn draw_cpu(f: &mut Frame, state: &mut State, area: &Rect) {
+fn draw_cpu(f: &mut Frame, state: &State, area: &Rect) {
     //
     // We will display the CPU brand, vendor_id
     // frequency and usage across all cores 
@@ -301,9 +312,49 @@ Processes: {processes_count}
         f.render_widget(freq_gauge, lower_section);
 }
 
-fn draw_memory(f: &mut Frame, area: &Rect) {}
+fn draw_memory(f: &mut Frame, state: &State, area: &Rect) {
+    let (free_memory, used_memory, total_memory) = state.system.get_memory_data();
 
-fn draw_disks(f: &mut Frame, state: &mut State, area: &Rect) {
+    let sections = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Percentage(50),
+                Constraint::Percentage(50)
+            ]
+        )
+        .vertical_margin(1)
+        .split(*area);
+
+    let mem_text = format!(r#"
+    Total RAM: {total_memory} MB
+    Used RAM: {used_memory} MB
+    Free RAM: {free_memory} MB
+    "#);
+
+    let mem_paragraph = Paragraph::new(mem_text);
+    f.render_widget(mem_paragraph, sections[0]);
+
+    let percent_ram_used = (used_memory as f64 / total_memory as f64) * 100.0;
+    let mem_gauge = Gauge::default()
+        .block(
+            Block::default()
+                .borders(Borders::TOP)
+                .border_type(BorderType::Thick)
+                .title("RAM usage (MB)")
+                .title_alignment(Alignment::Center)
+        )
+        .gauge_style(
+            Style::default()
+                .fg(Color::Cyan)
+                .bg(Color::Black)
+        )
+        .percent(percent_ram_used as u16)
+        .label(format!("{percent_ram_used:.2} %"));
+    f.render_widget(mem_gauge, sections[1]);
+}
+
+fn draw_disks(f: &mut Frame, state: &State, area: &Rect) {
     let disks_data: Vec<DiskData> = state.system.get_disk_data();
     let mut rows: Vec<Row> = Vec::new();
 

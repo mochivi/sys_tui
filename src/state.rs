@@ -82,12 +82,6 @@ impl State {
             self.graph_size_percentage -= 2;
         }
     }
-
-
-
-
-
-
 }
 
 pub struct CpuDataset {
