@@ -77,7 +77,7 @@ impl State {
     pub fn reduce_graph_size(&mut self) {
         // Avoid assigning a u16 value as negative
         if self.graph_size_percentage <= 0 {
-            self.graph_size_percentage = 100;
+            self.graph_size_percentage = 0;
         } else {
             self.graph_size_percentage -= 2;
         }

@@ -327,9 +327,9 @@ fn draw_memory(f: &mut Frame, state: &State, area: &Rect) {
         .split(*area);
 
     let mem_text = format!(r#"
-    Total RAM: {total_memory} MB
-    Used RAM: {used_memory} MB
-    Free RAM: {free_memory} MB
+Total RAM: {total_memory} MB
+Used RAM: {used_memory} MB
+Free RAM: {free_memory} MB
     "#);
 
     let mem_paragraph = Paragraph::new(mem_text);
